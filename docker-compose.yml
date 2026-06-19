@@ -1,0 +1,148 @@
+services:
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - dados_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - dados_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    env_file: .env
+    command: uvicorn orquestrador.api.principal:aplicacao --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - .:/app
+      - imagens_processadas:/app/dados/imagens_processadas
+      - relatorios:/app/dados/relatorios
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  trabalhador-high:
+    build: .
+    env_file: .env
+    environment:
+      CAMINHO_LOG: /app/logs/tarefas-high.jsonl
+    command: celery -A orquestrador.celery_aplicacao:aplicacao_celery worker --loglevel=INFO --queues=high --concurrency=2 --events --hostname=trabalhador-high@%h
+    volumes:
+      - .:/app
+      - logs_trabalhador:/app/logs
+      - imagens_processadas:/app/dados/imagens_processadas
+      - relatorios:/app/dados/relatorios
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  trabalhador-default:
+    build: .
+    env_file: .env
+    environment:
+      CAMINHO_LOG: /app/logs/tarefas-default.jsonl
+    command: celery -A orquestrador.celery_aplicacao:aplicacao_celery worker --loglevel=INFO --queues=default --concurrency=2 --events --hostname=trabalhador-default@%h
+    volumes:
+      - .:/app
+      - logs_trabalhador:/app/logs
+      - imagens_processadas:/app/dados/imagens_processadas
+      - relatorios:/app/dados/relatorios
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+
+  trabalhador-low:
+    build: .
+    env_file: .env
+    environment:
+      CAMINHO_LOG: /app/logs/tarefas-low.jsonl
+    command: celery -A orquestrador.celery_aplicacao:aplicacao_celery worker --loglevel=INFO --queues=low --concurrency=2 --events --hostname=trabalhador-low@%h
+    volumes:
+      - .:/app
+      - logs_trabalhador:/app/logs
+      - imagens_processadas:/app/dados/imagens_processadas
+      - relatorios:/app/dados/relatorios
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  beat:
+    build: .
+    env_file: .env
+    environment:
+      CAMINHO_LOG: /app/logs/celery-beat.jsonl
+    command: celery -A orquestrador.celery_aplicacao:aplicacao_celery beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
+    volumes:
+      - .:/app
+      - logs_trabalhador:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  flower:
+    build: .
+    env_file: .env
+    command: celery -A orquestrador.celery_aplicacao:aplicacao_celery flower --port=5555
+    ports:
+      - "127.0.0.1:5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+      trabalhador-high:
+        condition: service_started
+      trabalhador-default:
+        condition: service_started
+      trabalhador-low:
+        condition: service_started
+      beat:
+        condition: service_started
+
+  testes:
+    profiles: ["testes"]
+    build:
+      context: .
+      args:
+        INSTALAR_DEPENDENCIAS_DESENVOLVIMENTO: "true"
+    env_file: .env
+    command: python -m pytest -q
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+volumes:
+  dados_redis:
+  dados_postgres:
+  logs_trabalhador:
+  imagens_processadas:
+  relatorios:
