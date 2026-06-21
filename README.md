@@ -38,13 +38,14 @@ trabalhadores Celery separados por prioridade.
 <p align="center">
   <img
     src="docs/imagens/arquitetura-orquestrador-assincrono.jpg"
-    alt="Arquitetura visual do Orquestrador Assíncrono"
+    alt="Diagrama completo da arquitetura do Orquestrador Assíncrono"
     width="100%"
   >
 </p>
 
-O diagrama apresenta o fluxo completo entre a API, as filas, os trabalhadores,
-o banco de dados e os serviços de monitoramento e envio de e-mails.
+O diagrama apresenta o fluxo completo entre os clientes HTTP, o servidor
+Uvicorn, a API FastAPI, as filas no Redis, os workers Celery separados por
+prioridade, o PostgreSQL, o Celery Beat, o Flower e o serviço de e-mail Resend.
 
 Representação simplificada:
 
