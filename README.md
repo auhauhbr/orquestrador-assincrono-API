@@ -35,6 +35,19 @@ trabalhadores Celery separados por prioridade.
 
 ## Arquitetura
 
+<p align="center">
+  <img
+    src="docs/imagens/arquitetura-orquestrador-assincrono.jpg"
+    alt="Arquitetura visual do Orquestrador Assíncrono"
+    width="100%"
+  >
+</p>
+
+O diagrama apresenta o fluxo completo entre a API, as filas, os trabalhadores,
+o banco de dados e os serviços de monitoramento e envio de e-mails.
+
+Representação simplificada:
+
 ```text
                          +-------------------+
                          |    Cliente HTTP   |
